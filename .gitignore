@@ -1,0 +1,142 @@
+# Java: arquivos compilados e falhas da JVM
+*.class
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# Maven (preserva .mvn/ e os wrappers)
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+.mvn/timing.properties
+
+# Gradle (preserva gradle/wrapper/ e os scripts gradlew)
+.gradle/
+.kotlin/
+build/
+gradle-app.setting
+
+# Ant / NetBeans
+dist/
+nbbuild/
+nbdist/
+.nb-gradle/
+nbproject/private/
+
+# Saídas de compilação e ferramentas de análise
+out/
+bin/
+.apt_generated/
+.apt_generated_tests/
+.factorypath
+.checkstyle
+.pmd
+.scannerwork/
+.sonarlint/
+.sonar/
+coverage/
+*.exec
+
+# Logs e arquivos temporários
+logs/
+*.log
+*.log.*
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Spring Boot: configurações locais (não guardar credenciais)
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
+**/application-secrets.properties
+**/application-secrets.yml
+**/application-secrets.yaml
+spring-boot-devtools.properties
+.spring-boot-devtools.properties
+.spring-boot-devtools.yml
+.spring-boot-devtools.yaml
+
+# Variáveis de ambiente (preserva modelos)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.envrc
+
+# Chaves privadas e keystores locais
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Bancos locais H2 / SQLite
+*.mv.db
+*.trace.db
+*.h2.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse / Spring Tool Suite
+.classpath
+.project
+.settings/
+.metadata/
+.recommenders/
+.sts4-cache/
+
+# Visual Studio Code: preserva configurações compartilháveis
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100/
+.Trashes/
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*/
+
+# Dependências frontend, quando presentes
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
