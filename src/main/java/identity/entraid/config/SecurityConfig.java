@@ -4,6 +4,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.config.Customizer;
@@ -25,8 +26,10 @@ import org.springframework.web.client.RestTemplate;
 @EnableConfigurationProperties(EntraIdProperties.class)
 public class SecurityConfig {
     @Bean
+    @Order(1)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                .securityMatcher("/api/**", "/health")
                 // Only Authorization: Bearer is accepted; no cookie/session authentication.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -37,6 +40,12 @@ public class SecurityConfig {
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
                 .build();
+    }
+
+    @Bean
+    @Order(3)
+    SecurityFilterChain denyUnmatchedRequests(HttpSecurity http) throws Exception {
+        return http.authorizeHttpRequests(auth -> auth.anyRequest().denyAll()).build();
     }
 
     @Bean
