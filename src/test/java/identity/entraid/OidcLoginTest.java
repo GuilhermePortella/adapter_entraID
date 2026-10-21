@@ -187,7 +187,7 @@ class OidcLoginTest {
         String previousId = attempt.session().getId();
         var result = mvc.perform(get("/login/oauth2/code/entra").session(attempt.session())
                         .param("code", "test-code").param("state", attempt.state()))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/auth/me")).andReturn();
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/demo/index.html")).andReturn();
         var session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session.getId()).isNotEqualTo(previousId);
         assertThat(tokenForm).containsEntry("grant_type", "authorization_code")
@@ -207,6 +207,8 @@ class OidcLoginTest {
 
     @Test
     void loginEndpointStartsOidc() throws Exception {
+        mvc.perform(get("/demo/index.html")).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Entrar com Microsoft")));
         mvc.perform(get("/login")).andExpect(status().isFound())
                 .andExpect(redirectedUrl("/oauth2/authorization/entra"));
     }

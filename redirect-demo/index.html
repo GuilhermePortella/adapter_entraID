@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teste de login · Microsoft Entra ID</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 40px 20px; background: #eef2f6; color: #182536; font: 16px/1.6 system-ui, sans-serif; }
+    main { max-width: 780px; margin: auto; background: white; padding: clamp(24px, 5vw, 48px); border-radius: 16px; box-shadow: 0 8px 30px #18253610; }
+    h1 { line-height: 1.2; margin-top: 8px; }
+    .label { color: #426584; font-size: 13px; text-transform: uppercase; letter-spacing: .12em; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+    a, button { display: inline-block; padding: 12px 18px; border-radius: 8px; font: inherit; cursor: pointer; }
+    a { background: #135bbe; color: white; text-decoration: none; }
+    button { border: 1px solid #b5c4d5; color: #182536; background: white; }
+    a:focus-visible, button:focus-visible { outline: 3px solid #de9200; outline-offset: 3px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #status { background: #eef4fc; padding: 14px; border-radius: 8px; }
+    dl { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; }
+    dt { color: #526579; } dd { margin: 0; overflow-wrap: anywhere; }
+    pre { overflow: auto; padding: 16px; background: #142237; color: #edf4ff; border-radius: 8px; font-size: 13px; }
+    code { overflow-wrap: anywhere; } small { color: #526579; }
+  </style>
+</head>
+<body>
+<main>
+  <span class="label">Teste local · OpenID Connect</span>
+  <h1>Microsoft Entra ID</h1>
+  <p>Entre com sua conta Microsoft para testar o redirecionamento e consultar sua identidade.</p>
+  <div class="actions">
+    <a href="/login">Entrar com Microsoft</a>
+    <button id="reload" type="button">Atualizar dados</button>
+  </div>
+  <p id="status" role="status" aria-live="polite">Verificando sessão…</p>
+  <section id="identity" hidden aria-label="Usuário autenticado">
+    <h2>Informações retornadas</h2>
+    <dl>
+      <dt>Nome</dt><dd id="name"></dd>
+      <dt>E-mail</dt><dd id="email"></dd>
+      <dt>Subject</dt><dd id="subject"></dd>
+      <dt>Tenant ID</dt><dd id="tenantId"></dd>
+    </dl>
+    <details><summary>Ver resposta JSON</summary><pre id="json"></pre></details>
+  </section>
+  <hr>
+  <small>Callback cadastrado:<br><code>http://localhost:8080/login/oauth2/code/entra</code><br>
+    Após o login, você volta a esta página. Os dados são consultados em <code>/auth/me</code>.</small>
+</main>
+<script>
+  const status = document.getElementById('status');
+  const identity = document.getElementById('identity');
+  const reload = document.getElementById('reload');
+
+  async function loadIdentity() {
+    reload.disabled = true;
+    identity.hidden = true;
+    document.getElementById('json').textContent = '';
+    for (const field of ['name', 'email', 'subject', 'tenantId']) {
+      document.getElementById(field).textContent = '';
+    }
+    status.textContent = 'Verificando sessão…';
+    try {
+      // Do not follow the login redirect with fetch: authentication is a browser navigation.
+      const response = await fetch('/auth/me', {
+        credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 302) {
+        status.textContent = 'Você ainda não está autenticado ou sua sessão expirou. Clique em Entrar com Microsoft.';
+        return;
+      }
+      if (!response.ok) throw new Error('request_failed');
+      const data = await response.json();
+      if (data.authenticated !== true || !data.user) throw new Error('invalid_response');
+      for (const field of ['name', 'email', 'subject', 'tenantId']) {
+        document.getElementById(field).textContent = data.user[field] ?? 'Não informado';
+      }
+      document.getElementById('json').textContent = JSON.stringify(data, null, 2);
+      identity.hidden = false;
+      status.textContent = 'Login concluído. Sessão autenticada com Microsoft Entra ID.';
+    } catch {
+      status.textContent = 'Não foi possível consultar a identidade. Verifique se o backend está ativo e o login OIDC está habilitado.';
+    } finally {
+      reload.disabled = false;
+    }
+  }
+  reload.addEventListener('click', loadIdentity);
+  loadIdentity();
+</script>
+</body>
+</html>

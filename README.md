@@ -14,6 +14,13 @@ As seções abaixo descrevem o contrato Bearer existente.
 O esqueleto Ant/NetBeans foi migrado para Maven e o layout `src/main/java` e `src/test/java`.
 No NetBeans, reabra a pasta como projeto Maven pelo `pom.xml`.
 
+## Página HTML de teste
+
+Abra **http://localhost:8080/demo/index.html** após iniciar o Java com OIDC habilitado.
+O pequeno frontend fica em [redirect-demo](redirect-demo/README.md), sem npm ou servidor adicional.
+Após login, o navegador volta à página, que mostra os dados de `/auth/me`.
+O callback Azure continua `http://localhost:8080/login/oauth2/code/entra`.
+
 ## Endpoints
 
 | Método e caminho | Permissão | Resposta |

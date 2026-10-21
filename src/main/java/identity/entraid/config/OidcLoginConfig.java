@@ -84,7 +84,7 @@ public class OidcLoginConfig {
             LOG.info("security_event=oidc_login_started");
         });
         return http
-                .securityMatcher("/login", "/auth/**", "/csrf", "/oauth2/**", "/login/oauth2/**", "/logout")
+                .securityMatcher("/demo/index.html", "/login", "/auth/**", "/csrf", "/oauth2/**", "/login/oauth2/**", "/logout")
                 .csrf(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.changeSessionId()))
@@ -92,7 +92,7 @@ public class OidcLoginConfig {
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/authorization/entra", "/login/oauth2/code/entra").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/login", "/demo/index.html").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/me", "/csrf").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(errors -> errors
@@ -108,7 +108,7 @@ public class OidcLoginConfig {
                         .tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(tokenClient))
                         .successHandler((request, response, authentication) -> {
                             LOG.info("security_event=oidc_login_succeeded");
-                            response.sendRedirect(request.getContextPath() + "/auth/me");
+                            response.sendRedirect(request.getContextPath() + "/demo/index.html");
                         })
                         .failureHandler((request, response, exception) -> {
                             LOG.warn("security_event=oidc_login_failed");

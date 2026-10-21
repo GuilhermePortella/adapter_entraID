@@ -33,7 +33,8 @@ sequenceDiagram
     B->>E: Trocar code + code_verifier + client secret
     E-->>B: Tokens
     Note over B: Spring valida ID Token e nonce; troca o ID da sessão
-    B-->>N: 302 /auth/me
+    B-->>N: 302 /demo/index.html
+    N->>B: Abrir página de teste
     N->>B: GET /auth/me com sessão
     B-->>N: 200 + identidade em JSON
 ```
@@ -49,6 +50,7 @@ Não há implementação própria de criptografia nem chamada UserInfo/Graph.
 
 | Endpoint | Política |
 | --- | --- |
+| `GET /demo/index.html` | Página HTML pública de teste |
 | `GET /login` | Público; redireciona para `/oauth2/authorization/entra` |
 | `GET /oauth2/authorization/entra` | Inicia OAuth2 pelo Spring |
 | `GET /login/oauth2/code/entra` | Callback processado pelo Spring |
@@ -118,7 +120,8 @@ Não salve valores reais no `application.properties`, exemplos, histórico ou lo
    `openid profile email` conforme as políticas existentes.
 3. Inicie a aplicação na porta 8080 e abra `http://localhost:8080/login` no navegador.
 4. Autentique o usuário permitido no tenant e aguarde o callback.
-5. Confirme o redirecionamento automático para `/auth/me`, HTTP 200 e o contrato JSON.
+5. Confirme o retorno a `/demo/index.html`, que consulta `/auth/me` e mostra os dados.
+   A consulta `/auth/me` deve retornar HTTP 200 e o contrato JSON.
 6. Verifique ausência de tokens/secrets e volte a `/auth/me` usando a mesma sessão.
 7. Teste cancelamento e expiração de sessão: não devem retornar identidade autenticada.
 8. Tente uma conta não admitida pelo tenant. Não deve obter uma sessão. Um convidado
@@ -203,7 +206,7 @@ Testes locais não comprovam MFA, Conditional Access, governança ou prontidão 
 ## Arquivos impactados
 
 - `LoginController.java`: início de login e DTO com campos explícitos de identidade.
-- `OidcLoginConfig.java`: rotas da PoC, escopo email e destino `/auth/me`; remoção do mapper de roles.
+- `OidcLoginConfig.java`: rotas da PoC, escopo email e destino `/demo/index.html`; remoção do mapper de roles.
 - `OidcLoginTest.java`: contrato JSON, claims opcionais e cancelamento, preservando testes do protocolo.
 - `.env.example`, `README.md` e este documento: execução e escopo atualizados.
 - Removidos `AppRoleAuthoritiesMapper.java` e `AppRoleAuthoritiesMapperTest.java`.
