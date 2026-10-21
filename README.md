@@ -1,12 +1,25 @@
-# API protegida com Microsoft Entra ID
+# Microsoft Entra ID: API Bearer e login BFF
 
 Implementação básica em Java 21, Spring Boot e Spring Security OAuth2 Resource Server.
 Aceita access tokens JWT v2 de **um único tenant da nuvem pública Microsoft**, destinados
 a esta API. O cliente obtém o token no Entra ID e envia `Authorization: Bearer <access_token>`.
-A API não realiza login nem emite tokens; não precisa de client secret.
+O contrato Bearer foi preservado e não precisa de client secret.
+
+Há também um fluxo opcional de **login OIDC com sessão**, Authorization Code + PKCE,
+retorno de identidade em JSON, CSRF e logout local. Ele precisa de `ENTRA_CLIENT_ID`,
+`ENTRA_CLIENT_SECRET` e `ENTRA_LOGIN_ENABLED=true`, além do tenant.
+Consulte [configuração, arquitetura e validação do login BFF](docs/oidc-login.md).
+As seções abaixo descrevem o contrato Bearer existente.
 
 O esqueleto Ant/NetBeans foi migrado para Maven e o layout `src/main/java` e `src/test/java`.
 No NetBeans, reabra a pasta como projeto Maven pelo `pom.xml`.
+
+## Página HTML de teste
+
+Abra **http://localhost:8080/demo/index.html** após iniciar o Java com OIDC habilitado.
+O pequeno frontend fica em [redirect-demo](redirect-demo/README.md), sem npm ou servidor adicional.
+Após login, o navegador volta à página, que mostra os dados de `/auth/me`.
+O callback Azure continua `http://localhost:8080/login/oauth2/code/entra`.
 
 ## Endpoints
 
@@ -14,6 +27,10 @@ No NetBeans, reabra a pasta como projeto Maven pelo `pom.xml`.
 | --- | --- | --- |
 | `GET /health` | Público | `{"status":"UP"}` |
 | `GET /api/me` | Token válido com escopo delegado `access_as_user` | `subject` e `tenantId` |
+| `GET /login` (login habilitado) | Público | Inicia o login OIDC |
+| `GET /auth/me` (login habilitado) | Sessão OIDC autenticada | Identidade básica em JSON |
+| `GET /csrf` (login habilitado) | Sessão OIDC autenticada | Token CSRF para operações com sessão |
+| `POST /logout` (login habilitado) | CSRF válido | Invalida sessão e retorna 204 |
 | Outros caminhos/métodos | Negados | Sem acesso |
 
 Sem token ou com token inválido: **401**. Token válido sem o escopo exigido: **403**.
@@ -53,6 +70,7 @@ Requisitos: JDK 21 e Maven 3.6.3 ou superior.
 ```sh
 cp .env.example .env
 # Edite .env com os IDs do seu registro. O arquivo está no .gitignore.
+# Para executar SOMENTE a API Bearer, defina ENTRA_LOGIN_ENABLED=false.
 set -a
 source .env
 set +a
@@ -98,14 +116,16 @@ escopo, app roles e negação de rotas não cadastradas.
   de chaves pelo Spring Security/Nimbus. Downloads têm timeouts de conexão e leitura de 5 s.
 - Emissor exato, audiência, `tid`, versão `2.0`, expiração e `sub` são obrigatórios.
   A validação temporal padrão do Spring tolera 60 s de diferença entre relógios.
-- API sem sessão, autenticação somente por Bearer no header e autorização negada por padrão.
-  CSRF está desabilitado porque não há autenticação por cookie; reveja isso se adicionar sessões.
+- `/api/**` permanece sem sessão, autenticado somente por Bearer no header, com autorização negada por padrão.
+  CSRF está desabilitado apenas na cadeia Bearer (`/api/**` e `/health`).
+  A cadeia OIDC separada mantém CSRF habilitado e nunca autentica chamadas à API Bearer.
   CORS não foi habilitado; configure origens específicas caso um frontend em outra origem precise acessar.
 - A inicialização não exige baixar as chaves. A primeira validação precisa de acesso HTTPS
   a `login.microsoftonline.com`; uma falha de obtenção das chaves não libera acesso.
 - JWTs são validados localmente, sem consulta de revogação a cada chamada. A aplicação
   não implementa avaliação contínua de acesso, permissões por objeto nem multitenancy.
 - Não há modo mock que desative autenticação em runtime. Chaves de teste existem apenas em `src/test`.
+  Os testes OIDC usam servidor local para token/JWKS e executam os validadores oficiais sem substituí-los.
 - A integração com um tenant real ainda precisa ser validada no ambiente de destino.
 
 ## Referências oficiais
