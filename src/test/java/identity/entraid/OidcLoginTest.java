@@ -92,7 +92,7 @@ class OidcLoginTest {
                     Map<String, Object> body = failure
                             ? Map.of("error", "invalid_client", "error_description", "SENSITIVE_PROVIDER_DETAIL")
                             : Map.of("access_token", "test-access-token", "token_type", "Bearer", "expires_in", 300,
-                                    "scope", "openid profile", "id_token", idToken());
+                                    "scope", "openid profile email", "id_token", idToken());
                     byte[] bytes = JSON.writeValueAsBytes(body);
                     exchange.getResponseHeaders().set("Content-Type", "application/json");
                     exchange.sendResponseHeaders(failure ? ("invalid_client".equals(scenario) ? 401 : 503) : 200,
@@ -147,16 +147,16 @@ class OidcLoginTest {
         var claims = new JWTClaimsSet.Builder().issuer(ISSUER).audience(CLIENT).subject("test-user")
                 .issueTime(Date.from(now.minusSeconds(5))).expirationTime(Date.from(now.plusSeconds(300)))
                 .claim("nonce", nonce).claim("tid", "00000000-0000-0000-0000-000000000000")
-                .claim("roles", List.of("Gateway.AdminGlobal"));
+                .claim("name", "Usuario Teste").claim("email", "usuario@example.com")
+                .claim("preferred_username", "not-an-email");
         switch (scenario) {
             case "issuer" -> claims.issuer("https://untrusted.invalid");
             case "audience" -> claims.audience("wrong-client");
             case "expired" -> claims.expirationTime(Date.from(now.minusSeconds(120)));
             case "nonce" -> claims.claim("nonce", "incorrect-nonce");
             case "missing-nonce" -> claims.claim("nonce", null);
-            case "missing-role" -> claims.claim("roles", null);
-            case "wrong-role" -> claims.claim("roles", List.of("Global Administrator"));
-            case "malformed-role" -> claims.claim("roles", "Gateway.AdminGlobal");
+            case "missing-email" -> claims.claim("email", null);
+            case "optional-claims" -> claims.claim("email", null).claim("name", null).claim("tid", null);
             default -> { }
         }
         var signed = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(KEY.getKeyID()).build(), claims.build());
@@ -178,6 +178,7 @@ class OidcLoginTest {
         assertThat(query.get("code_challenge_method")).isEqualTo("S256");
         assertThat(query.get("code_challenge")).isNotBlank();
         assertThat(query.get("response_type")).isEqualTo("code");
+        assertThat(query.get("scope").split(" ")).containsExactlyInAnyOrder("openid", "profile", "email");
         return new LoginAttempt((MockHttpSession) result.getRequest().getSession(false), query.get("state"));
     }
 
@@ -186,7 +187,7 @@ class OidcLoginTest {
         String previousId = attempt.session().getId();
         var result = mvc.perform(get("/login/oauth2/code/entra").session(attempt.session())
                         .param("code", "test-code").param("state", attempt.state()))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/private")).andReturn();
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/auth/me")).andReturn();
         var session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session.getId()).isNotEqualTo(previousId);
         assertThat(tokenForm).containsEntry("grant_type", "authorization_code")
@@ -198,32 +199,60 @@ class OidcLoginTest {
 
     @Test
     void anonymousUserIsRedirectedToLoginWhileBearerApiStillReturns401() throws Exception {
-        mvc.perform(get("/private")).andExpect(status().is3xxRedirection())
+        mvc.perform(get("/auth/me")).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("http://localhost/oauth2/authorization/entra"));
         mvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
         mvc.perform(get("/health")).andExpect(status().isOk());
     }
 
     @Test
-    void fullCodeFlowCreatesSessionAndAuthorizesAdminWithoutExposingIdentityTokens() throws Exception {
+    void loginEndpointStartsOidc() throws Exception {
+        mvc.perform(get("/login")).andExpect(status().isFound())
+                .andExpect(redirectedUrl("/oauth2/authorization/entra"));
+    }
+
+    @Test
+    void fullCodeFlowReturnsOnlyBasicIdentityAndPreservesBearerIsolation() throws Exception {
         var session = login();
-        mvc.perform(get("/private").session(session)).andExpect(status().isOk())
-                .andExpect(content().json("{\"status\":\"authenticated\"}"));
-        mvc.perform(get("/admin/test").session(session)).andExpect(status().isOk())
-                .andExpect(content().json("{\"status\":\"authorized\"}"));
+        var result = mvc.perform(get("/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+                .andReturn();
+        assertThat(JSON.readTree(result.getResponse().getContentAsString())).isEqualTo(JSON.readTree("""
+                {"authenticated":true,"provider":"Microsoft Entra ID","user":{
+                  "name":"Usuario Teste","email":"usuario@example.com","subject":"test-user",
+                  "tenantId":"00000000-0000-0000-0000-000000000000"}}
+                """));
         mvc.perform(get("/api/me").session(session)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/admin/test").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/private").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/not-allowed").session(session)).andExpect(status().isForbidden());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"missing-role", "wrong-role", "malformed-role"})
-    void authenticatedUsersWithoutValidAdminRoleAreForbidden(String variant) throws Exception {
+    @ValueSource(strings = {"missing-email", "optional-claims"})
+    void optionalClaimsAreNullWithoutInventingAnEmail(String variant) throws Exception {
         scenario = variant;
-        var session = login();
-        mvc.perform(get("/private").session(session)).andExpect(status().isOk());
-        mvc.perform(get("/admin/test").session(session).header("roles", "Gateway.AdminGlobal")
-                        .param("role", "Gateway.AdminGlobal"))
-                .andExpect(status().isForbidden());
+        var response = mvc.perform(get("/auth/me").session(login()))
+                .andExpect(status().isOk()).andReturn();
+        var body = JSON.readTree(response.getResponse().getContentAsString());
+        assertThat(body.get("authenticated").asBoolean()).isTrue();
+        assertThat(body.get("user").get("subject").asText()).isEqualTo("test-user");
+        assertThat(body.get("user").get("email").isNull()).isTrue();
+        if ("optional-claims".equals(variant)) {
+            assertThat(body.get("user").get("name").isNull()).isTrue();
+            assertThat(body.get("user").get("tenantId").isNull()).isTrue();
+        }
+    }
+
+    @Test
+    void cancelledLoginDoesNotAuthenticateOrExchangeCode() throws Exception {
+        var attempt = begin();
+        mvc.perform(get("/login/oauth2/code/entra").session(attempt.session())
+                        .param("error", "access_denied").param("state", attempt.state()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().json("{\"error\":\"authentication_failed\"}"));
+        assertThat(TOKEN_CALLS.get()).isZero();
+        mvc.perform(get("/auth/me").session(attempt.session())).andExpect(status().is3xxRedirection());
     }
 
     @ParameterizedTest
@@ -236,7 +265,7 @@ class OidcLoginTest {
                         .param("code", "test-code").param("state", attempt.state()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().json("{\"error\":\"authentication_failed\"}"));
-        mvc.perform(get("/private").session(attempt.session())).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/auth/me").session(attempt.session())).andExpect(status().is3xxRedirection());
     }
 
     @Test
@@ -291,7 +320,7 @@ class OidcLoginTest {
         mvc.perform(post("/logout").session(session).header(csrf.get("headerName").asText(), csrf.get("token").asText()))
                 .andExpect(status().isNoContent()).andExpect(cookie().maxAge("JSESSIONID", 0));
         assertThat(session.isInvalid()).isTrue();
-        mvc.perform(get("/private").cookie(new jakarta.servlet.http.Cookie("JSESSIONID", "expired-session")))
+        mvc.perform(get("/auth/me").cookie(new jakarta.servlet.http.Cookie("JSESSIONID", "expired-session")))
                 .andExpect(status().is3xxRedirection());
     }
 
@@ -300,12 +329,12 @@ class OidcLoginTest {
         var session = new MockHttpSession();
         var token = new OidcIdToken("test-token", Instant.now().minusSeconds(600), Instant.now().minusSeconds(1),
                 Map.of("sub", "test-user"));
-        var authorities = List.of(new SimpleGrantedAuthority("APPROLE_Gateway.AdminGlobal"));
+        var authorities = List.of(new SimpleGrantedAuthority("OIDC_USER"));
         var user = new DefaultOidcUser(authorities, token);
         var context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new OAuth2AuthenticationToken(user, authorities, "entra"));
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-        mvc.perform(get("/admin/test").session(session)).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/auth/me").session(session)).andExpect(status().is3xxRedirection());
         assertThat(session.isInvalid()).isTrue();
     }
 }

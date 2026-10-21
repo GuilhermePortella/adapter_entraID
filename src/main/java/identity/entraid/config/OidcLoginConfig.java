@@ -33,7 +33,6 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.web.client.RestClient;
-import identity.entraid.mapping.AppRoleAuthoritiesMapper;
 import jakarta.servlet.http.HttpSessionEvent;
 import jakarta.servlet.http.HttpSessionListener;
 
@@ -52,7 +51,7 @@ public class OidcLoginConfig {
                 .clientId(login.clientId()).clientSecret(login.clientSecret())
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri(login.redirectUri()).scope("openid", "profile")
+                .redirectUri(login.redirectUri()).scope("openid", "profile", "email")
                 .authorizationUri(authority + "/oauth2/v2.0/authorize")
                 .tokenUri(authority + "/oauth2/v2.0/token")
                 .jwkSetUri(entra.jwkSetUri()).issuerUri(entra.issuer())
@@ -85,7 +84,7 @@ public class OidcLoginConfig {
             LOG.info("security_event=oidc_login_started");
         });
         return http
-                .securityMatcher("/private", "/csrf", "/admin/**", "/oauth2/**", "/login/oauth2/**", "/logout")
+                .securityMatcher("/login", "/auth/**", "/csrf", "/oauth2/**", "/login/oauth2/**", "/logout")
                 .csrf(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.changeSessionId()))
@@ -93,8 +92,8 @@ public class OidcLoginConfig {
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/authorization/entra", "/login/oauth2/code/entra").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/private", "/csrf").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/admin/test").hasAuthority(AppRoleAuthoritiesMapper.ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/auth/me", "/csrf").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/entra"))
@@ -103,13 +102,13 @@ public class OidcLoginConfig {
                             response.setStatus(403);
                         }))
                 .oauth2Login(login -> login
+                        .loginPage("/login")
                         .authorizedClientRepository(new HttpSessionOAuth2AuthorizedClientRepository())
                         .authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(resolver))
                         .tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(tokenClient))
-                        .userInfoEndpoint(info -> info.userAuthoritiesMapper(new AppRoleAuthoritiesMapper()))
                         .successHandler((request, response, authentication) -> {
                             LOG.info("security_event=oidc_login_succeeded");
-                            response.sendRedirect(request.getContextPath() + "/private");
+                            response.sendRedirect(request.getContextPath() + "/auth/me");
                         })
                         .failureHandler((request, response, exception) -> {
                             LOG.warn("security_event=oidc_login_failed");

@@ -6,7 +6,7 @@ a esta API. O cliente obtém o token no Entra ID e envia `Authorization: Bearer 
 O contrato Bearer foi preservado e não precisa de client secret.
 
 Há também um fluxo opcional de **login OIDC com sessão**, Authorization Code + PKCE,
-App Role `Gateway.AdminGlobal`, CSRF e logout local. Ele precisa de `ENTRA_CLIENT_ID`,
+retorno de identidade em JSON, CSRF e logout local. Ele precisa de `ENTRA_CLIENT_ID`,
 `ENTRA_CLIENT_SECRET` e `ENTRA_LOGIN_ENABLED=true`, além do tenant.
 Consulte [configuração, arquitetura e validação do login BFF](docs/oidc-login.md).
 As seções abaixo descrevem o contrato Bearer existente.
@@ -20,8 +20,8 @@ No NetBeans, reabra a pasta como projeto Maven pelo `pom.xml`.
 | --- | --- | --- |
 | `GET /health` | Público | `{"status":"UP"}` |
 | `GET /api/me` | Token válido com escopo delegado `access_as_user` | `subject` e `tenantId` |
-| `GET /private` (login habilitado) | Sessão OIDC autenticada | Status sem dados pessoais |
-| `GET /admin/test` (login habilitado) | Sessão com `Gateway.AdminGlobal` | Status sem dados pessoais |
+| `GET /login` (login habilitado) | Público | Inicia o login OIDC |
+| `GET /auth/me` (login habilitado) | Sessão OIDC autenticada | Identidade básica em JSON |
 | `GET /csrf` (login habilitado) | Sessão OIDC autenticada | Token CSRF para operações com sessão |
 | `POST /logout` (login habilitado) | CSRF válido | Invalida sessão e retorna 204 |
 | Outros caminhos/métodos | Negados | Sem acesso |
