@@ -85,6 +85,7 @@ public class OidcLoginConfig {
             LOG.info("security_event=oidc_login_started");
         });
         return http
+                .securityMatcher("/private", "/csrf", "/admin/**", "/oauth2/**", "/login/oauth2/**", "/logout")
                 .csrf(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.changeSessionId()))
