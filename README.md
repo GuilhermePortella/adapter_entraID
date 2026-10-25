@@ -16,7 +16,7 @@ No NetBeans, reabra a pasta como projeto Maven pelo `pom.xml`.
 
 ## Página HTML de teste
 
-Abra **http://localhost:8080/demo/index.html** após iniciar o Java com OIDC habilitado.
+Abra **http://localhost:8080/login** após iniciar o Java com OIDC habilitado.
 O pequeno frontend fica em [redirect-demo](redirect-demo/README.md), sem npm ou servidor adicional.
 Após login, o navegador volta à página, que mostra os dados de `/auth/me`.
 O callback Azure continua `http://localhost:8080/login/oauth2/code/entra`.
@@ -27,7 +27,7 @@ O callback Azure continua `http://localhost:8080/login/oauth2/code/entra`.
 | --- | --- | --- |
 | `GET /health` | Público | `{"status":"UP"}` |
 | `GET /api/me` | Token válido com escopo delegado `access_as_user` | `subject` e `tenantId` |
-| `GET /login` (login habilitado) | Público | Inicia o login OIDC |
+| `GET /login` (login habilitado) | Público | Página de entrada com botão Microsoft |
 | `GET /auth/me` (login habilitado) | Sessão OIDC autenticada | Identidade básica em JSON |
 | `GET /csrf` (login habilitado) | Sessão OIDC autenticada | Token CSRF para operações com sessão |
 | `POST /logout` (login habilitado) | CSRF válido | Invalida sessão e retorna 204 |
@@ -66,6 +66,20 @@ uma política explícita de app roles em endpoints próprios.
 ## Executar
 
 Requisitos: JDK 21 e Maven 3.6.3 ou superior.
+
+Para iniciar com as variáveis locais, execute:
+
+```sh
+./start.sh
+```
+
+O script carrega `.env`, verifica os IDs obrigatórios e inicia o Maven. Se o arquivo
+não existir, cria uma cópia de `.env.example` para preenchimento. Informe os UUIDs
+completos em `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID` e `ENTRA_AUDIENCE`, e o Value em
+`ENTRA_CLIENT_SECRET` (entre aspas simples). O script não imprime as credenciais.
+Após iniciar, abra **http://localhost:8080/login**. Use `Ctrl+C` para parar.
+
+Alternativamente, exporte as variáveis manualmente:
 
 ```sh
 cp .env.example .env

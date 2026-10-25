@@ -89,6 +89,20 @@ class OidcSessionExpiryFilterTest {
         assertThat(response.getStatus()).isEqualTo(302);
     }
 
+    @Test
+    void expiredSessionReceivesForbiddenPageWithoutRedirect() throws Exception {
+        authenticate(Instant.now().minusSeconds(60));
+        request.setRequestURI("/demo/index.html");
+        var session = new MockHttpSession();
+        request.setSession(session);
+        filter.doFilter(request, response, chain);
+        assertThat(session.isInvalid()).isTrue();
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getRedirectedUrl()).isNull();
+        assertThat(response.getContentAsString()).contains("Acesso restrito").doesNotContain("Ver resposta JSON");
+    }
+
     private OAuth2AuthenticationToken authenticate(Instant expiresAt) {
         var token = new OidcIdToken("test-id-token", expiresAt.minusSeconds(7200), expiresAt,
                 Map.of("sub", "test-user"));

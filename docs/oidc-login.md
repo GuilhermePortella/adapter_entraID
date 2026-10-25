@@ -24,7 +24,7 @@ sequenceDiagram
     participant B as Backend
     participant E as Microsoft Entra ID
     N->>B: GET /login
-    B-->>N: 302 /oauth2/authorization/entra
+    B-->>N: Página de login com botão Microsoft
     N->>B: Iniciar OAuth2
     B-->>N: 302 authorize com state, nonce e PKCE
     N->>E: Autenticar usuário
@@ -50,7 +50,7 @@ Não há implementação própria de criptografia nem chamada UserInfo/Graph.
 
 | Endpoint | Política |
 | --- | --- |
-| `GET /demo/index.html` | Página HTML pública de teste |
+| `GET /demo/index.html` | Sessão autenticada; sem sessão válida retorna HTML com status 403 |
 | `GET /login` | Público; redireciona para `/oauth2/authorization/entra` |
 | `GET /oauth2/authorization/entra` | Inicia OAuth2 pelo Spring |
 | `GET /login/oauth2/code/entra` | Callback processado pelo Spring |
@@ -78,8 +78,9 @@ Resposta de `/auth/me`, com dados ilustrativos:
 Os campos vêm exclusivamente do ID Token validado: `name`, `email`, `sub` e `tid`.
 `name`, `email` e `tenantId` são `null` quando ausentes. Não há fallback para
 `preferred_username`; ele não é tratado como e-mail verificado. `subject` é o `sub`,
-não o Object ID. Não são retornados tokens OIDC, secrets, cookies ou o conjunto completo
- de claims. A resposta mantém `Cache-Control: no-store` do Spring Security.
+não o Object ID. A resposta inclui `claims` com os claims do ID Token validado e `access` com
+`groups`, `roles`, `directoryRoles` (claim `wids`) e `groupsStatus`. Não retorna o JWT
+serializado, access token, secrets ou cookies. A resposta mantém `Cache-Control: no-store` do Spring Security.
 
 ## Configuração e execução local
 
@@ -215,3 +216,28 @@ Testes locais não comprovam MFA, Conditional Access, governança ou prontidão 
 
 - [Microsoft: claims do ID Token e email opcional](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference)
 - [Spring Security: OAuth2 Login](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/advanced.html)
+
+## Claims e grupos no JSON
+
+A seção “Ver resposta JSON” mostra também os claims recebidos no ID Token validado,
+incluindo claims opcionais e extensões enviados pelo Entra. Datas são serializadas pelo
+Jackson a partir dos tipos convertidos pelo Spring; este JSON não é o JWT original.
+`access` resume grupos, roles de aplicativo e roles de diretório, sem conceder novas
+permissões nos endpoints Java.
+
+`access.groupsStatus` distingue:
+- `included`: o token contém o claim `groups` (conforme o escopo configurado no Entra).
+- `not_provided`: o token não contém grupos; isso não prova ausência de associações.
+- `requires_graph`: há indicação de excesso de grupos; a lista não está completa no token.
+
+Para incluir grupos, abra o registro do aplicativo no Entra ID, vá a **Token configuration >
+Add groups claim** e configure os grupos desejados para o ID Token. Faça logout local e
+entre novamente para receber os novos claims. Os grupos normalmente são identificados
+por IDs; esta aplicação não consulta o Microsoft Graph para resolver nomes nem listar
+associações ausentes. Roles dependem das atribuições e configuração do aplicativo.
+
+Referência: https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles
+
+A página 403 fica em `src/main/resources/pages/403.html`, com CSS e JavaScript
+embutidos no JAR. O backend bloqueia o HTML de identidade antes de servi-lo; os
+easter eggs não alteram autenticação. Uma sessão expirada também recebe 403 nessa rota.

@@ -150,6 +150,11 @@ class OidcLoginTest {
                 .claim("name", "Usuario Teste").claim("email", "usuario@example.com")
                 .claim("preferred_username", "not-an-email");
         switch (scenario) {
+            case "access-claims" -> claims.claim("groups", List.of("group-1", "group-2"))
+                    .claim("roles", List.of("Reader")).claim("wids", List.of("directory-role-1"))
+                    .claim("extension_department", "Engineering");
+            case "group-overage" -> claims.claim("_claim_names", Map.of("groups", "src1"));
+            case "hasgroups" -> claims.claim("hasgroups", true);
             case "issuer" -> claims.issuer("https://untrusted.invalid");
             case "audience" -> claims.audience("wrong-client");
             case "expired" -> claims.expirationTime(Date.from(now.minusSeconds(120)));
@@ -206,24 +211,36 @@ class OidcLoginTest {
     }
 
     @Test
-    void loginEndpointStartsOidc() throws Exception {
-        mvc.perform(get("/demo/index.html")).andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Entrar com Microsoft")));
-        mvc.perform(get("/login")).andExpect(status().isFound())
-                .andExpect(redirectedUrl("/oauth2/authorization/entra"));
+    void loginPageOffersMicrosoftAuthentication() throws Exception {
+        mvc.perform(get("/demo/index.html")).andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("text/html"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Acesso restrito")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Ver resposta JSON"))));
+        mvc.perform(get("/demo/index.html").cookie(new jakarta.servlet.http.Cookie("JSESSIONID", "invalid")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/demo/index.html").session(login())).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Ver resposta JSON")));
+        mvc.perform(get("/")).andExpect(status().isFound()).andExpect(redirectedUrl("/login"));
+        mvc.perform(get("/login")).andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/html"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/oauth2/authorization/entra\"")));
+        mvc.perform(get("/login").session(login())).andExpect(status().isFound())
+                .andExpect(redirectedUrl("/demo/index.html"));
     }
 
     @Test
-    void fullCodeFlowReturnsOnlyBasicIdentityAndPreservesBearerIsolation() throws Exception {
+    void fullCodeFlowReturnsIdentityAndClaimsAndPreservesBearerIsolation() throws Exception {
         var session = login();
         var result = mvc.perform(get("/auth/me").session(session)).andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
                 .andReturn();
-        assertThat(JSON.readTree(result.getResponse().getContentAsString())).isEqualTo(JSON.readTree("""
-                {"authenticated":true,"provider":"Microsoft Entra ID","user":{
-                  "name":"Usuario Teste","email":"usuario@example.com","subject":"test-user",
-                  "tenantId":"00000000-0000-0000-0000-000000000000"}}
-                """));
+        var body = JSON.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("authenticated").asBoolean()).isTrue();
+        assertThat(body.get("user").get("subject").asText()).isEqualTo("test-user");
+        assertThat(body.get("claims").get("preferred_username").asText()).isEqualTo("not-an-email");
+        assertThat(body.get("access").get("groupsStatus").asText()).isEqualTo("not_provided");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("test-access-token", "local-test-only");
         mvc.perform(get("/api/me").session(session)).andExpect(status().isUnauthorized());
         mvc.perform(get("/admin/test").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/private").session(session)).andExpect(status().isForbidden());
@@ -244,6 +261,26 @@ class OidcLoginTest {
             assertThat(body.get("user").get("name").isNull()).isTrue();
             assertThat(body.get("user").get("tenantId").isNull()).isTrue();
         }
+    }
+
+    @Test
+    void exposesGroupsRolesAndCustomClaimsFromValidatedToken() throws Exception {
+        scenario = "access-claims";
+        mvc.perform(get("/auth/me").session(login())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.claims.extension_department").value("Engineering"))
+                .andExpect(jsonPath("$.access.groups[1]").value("group-2"))
+                .andExpect(jsonPath("$.access.roles[0]").value("Reader"))
+                .andExpect(jsonPath("$.access.directoryRoles[0]").value("directory-role-1"))
+                .andExpect(jsonPath("$.access.groupsStatus").value("included"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"group-overage", "hasgroups"})
+    void signalsIncompleteGroupMembership(String variant) throws Exception {
+        scenario = variant;
+        mvc.perform(get("/auth/me").session(login())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.access.groups").isEmpty())
+                .andExpect(jsonPath("$.access.groupsStatus").value("requires_graph"));
     }
 
     @Test

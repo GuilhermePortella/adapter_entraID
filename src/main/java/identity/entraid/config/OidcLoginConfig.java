@@ -84,7 +84,7 @@ public class OidcLoginConfig {
             LOG.info("security_event=oidc_login_started");
         });
         return http
-                .securityMatcher("/demo/index.html", "/login", "/auth/**", "/csrf", "/oauth2/**", "/login/oauth2/**", "/logout")
+                .securityMatcher("/", "/demo/index.html", "/login", "/auth/**", "/csrf", "/oauth2/**", "/login/oauth2/**", "/logout")
                 .csrf(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.changeSessionId()))
@@ -92,14 +92,25 @@ public class OidcLoginConfig {
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/authorization/entra", "/login/oauth2/code/entra").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/login", "/demo/index.html").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/auth/me", "/csrf").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/", "/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/demo/index.html", "/auth/me", "/csrf").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/entra"))
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            if (PageAccessDenied.isProtectedPage(request)) {
+                                PageAccessDenied.respond(request, response);
+                            } else {
+                                new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/entra")
+                                        .commence(request, response, exception);
+                            }
+                        })
                         .accessDeniedHandler((request, response, exception) -> {
                             LOG.info("security_event=oidc_access_denied");
-                            response.setStatus(403);
+                            if (PageAccessDenied.isProtectedPage(request)) {
+                                PageAccessDenied.respond(request, response);
+                            } else {
+                                response.setStatus(403);
+                            }
                         }))
                 .oauth2Login(login -> login
                         .loginPage("/login")
