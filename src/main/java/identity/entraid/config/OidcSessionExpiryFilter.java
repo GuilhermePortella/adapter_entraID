@@ -27,8 +27,12 @@ final class OidcSessionExpiryFilter extends OncePerRequestFilter {
             if (expiry == null || !Instant.now().isBefore(expiry)) {
                 new SecurityContextLogoutHandler().logout(request, response, authentication);
                 LOG.info("security_event=oidc_session_expired");
-                new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/entra")
-                        .commence(request, response, null);
+                if (PageAccessDenied.isProtectedPage(request)) {
+                    PageAccessDenied.respond(request, response);
+                } else {
+                    new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/entra")
+                            .commence(request, response, null);
+                }
                 return;
             }
         }

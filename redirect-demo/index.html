@@ -31,6 +31,7 @@
   <div class="actions">
     <a href="/login">Entrar com Microsoft</a>
     <button id="reload" type="button">Atualizar dados</button>
+    <button id="logout" type="button" hidden>Sair</button>
   </div>
   <p id="status" role="status" aria-live="polite">Verificando sessão…</p>
   <section id="identity" hidden aria-label="Usuário autenticado">
@@ -41,6 +42,7 @@
       <dt>Subject</dt><dd id="subject"></dd>
       <dt>Tenant ID</dt><dd id="tenantId"></dd>
     </dl>
+    <p>O JSON inclui os claims recebidos no login. Grupos e roles aparecem quando enviados pela organização.</p>
     <details><summary>Ver resposta JSON</summary><pre id="json"></pre></details>
   </section>
   <hr>
@@ -51,10 +53,12 @@
   const status = document.getElementById('status');
   const identity = document.getElementById('identity');
   const reload = document.getElementById('reload');
+  const logout = document.getElementById('logout');
 
   async function loadIdentity() {
     reload.disabled = true;
     identity.hidden = true;
+    logout.hidden = true;
     document.getElementById('json').textContent = '';
     for (const field of ['name', 'email', 'subject', 'tenantId']) {
       document.getElementById(field).textContent = '';
@@ -78,6 +82,7 @@
       }
       document.getElementById('json').textContent = JSON.stringify(data, null, 2);
       identity.hidden = false;
+      logout.hidden = false;
       status.textContent = 'Login concluído. Sessão autenticada com Microsoft Entra ID.';
     } catch {
       status.textContent = 'Não foi possível consultar a identidade. Verifique se o backend está ativo e o login OIDC está habilitado.';
@@ -85,6 +90,27 @@
       reload.disabled = false;
     }
   }
+  logout.addEventListener('click', async () => {
+    logout.disabled = true;
+    try {
+      const csrfResponse = await fetch('/csrf', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
+      if (csrfResponse.type === 'opaqueredirect' || csrfResponse.status === 401) {
+        window.location.assign('/login');
+        return;
+      }
+      if (!csrfResponse.ok) throw new Error('csrf_failed');
+      const csrf = await csrfResponse.json();
+      const response = await fetch('/logout', {
+        method: 'POST', credentials: 'same-origin', redirect: 'manual',
+        headers: { [csrf.headerName]: csrf.token }
+      });
+      if (response.status !== 204) throw new Error('logout_failed');
+      window.location.assign('/login');
+    } catch {
+      status.textContent = 'Não foi possível sair. Tente novamente.';
+      logout.disabled = false;
+    }
+  });
   reload.addEventListener('click', loadIdentity);
   loadIdentity();
 </script>
