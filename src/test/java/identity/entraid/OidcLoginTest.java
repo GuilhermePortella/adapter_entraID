@@ -59,6 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "entra.login.client-secret=local-test-only",
         "entra.login.redirect-uri=http://localhost:8080/login/oauth2/code/entra"
 })
+@org.springframework.test.context.ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import(OidcLoginTest.LocalProvider.class)
 class OidcLoginTest {

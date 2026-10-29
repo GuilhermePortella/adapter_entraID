@@ -4,6 +4,11 @@ set +x
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
+if [[ -n "${SPRING_PROFILES_ACTIVE:-}" && "$SPRING_PROFILES_ACTIVE" != local ]]; then
+    echo 'start.sh é exclusivo para uso local. Em produção, execute o JAR com o perfil prod.' >&2
+    exit 1
+fi
+
 if [[ ! -f .env ]]; then
     (umask 077; cp .env.example .env)
     echo 'Arquivo .env criado. Preencha os IDs e o secret e execute novamente.'
@@ -14,6 +19,12 @@ chmod 600 .env
 set -a
 source .env
 set +a
+
+if [[ -n "${SPRING_PROFILES_ACTIVE:-}" && "$SPRING_PROFILES_ACTIVE" != local ]]; then
+    echo 'O .env contém um perfil incompatível. start.sh aceita somente local.' >&2
+    exit 1
+fi
+export SPRING_PROFILES_ACTIVE=local
 
 export PORT="${PORT:-8080}"
 export ENTRA_LOGIN_ENABLED="${ENTRA_LOGIN_ENABLED:-true}"

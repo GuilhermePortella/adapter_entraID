@@ -87,6 +87,7 @@ cp .env.example .env
 # Para executar SOMENTE a API Bearer, defina ENTRA_LOGIN_ENABLED=false.
 set -a
 source .env
+export SPRING_PROFILES_ACTIVE=local
 set +a
 mvn spring-boot:run
 ```
@@ -110,11 +111,17 @@ unset ACCESS_TOKEN
 O exemplo HTTP destina-se ao desenvolvimento local. No ambiente publicado, exponha a
 API por HTTPS. Não registre o header Authorization no proxy ou na aplicação.
 
+## Produção
+
+O perfil padrão é `prod`: exige TLS no Java, callback HTTPS e cookies seguros.
+`./start.sh` seleciona explicitamente `local` e não deve ser usado no servidor.
+Consulte [TLS, perfis e entrega de segredos](docs/production.md).
+
 ## Testar e empacotar
 
 ```sh
 mvn verify
-java -jar target/adapter-entraid-0.0.1-SNAPSHOT.jar
+java -jar target/adapter-entraid-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
 ```
 
 Os testes não precisam de tenant, credenciais ou acesso ao Entra ID. Eles geram uma

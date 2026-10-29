@@ -140,3 +140,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-store/
+
+# Shared local profile: defaults only, never credentials
+!src/main/resources/application-local.properties

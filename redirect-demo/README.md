@@ -11,6 +11,7 @@ HTML e JavaScript puros, sem Node/npm. A página de login é servida pelo Java e
 ```sh
 set -a
 source .env
+export SPRING_PROFILES_ACTIVE=local
 set +a
 mvn spring-boot:run
 ```

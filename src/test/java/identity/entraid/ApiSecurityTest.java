@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "entra.tenant-id=00000000-0000-0000-0000-000000000000",
         "entra.audience=11111111-1111-1111-1111-111111111111"
 })
+@org.springframework.test.context.ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import(ApiSecurityTest.TestKeys.class)
 class ApiSecurityTest {

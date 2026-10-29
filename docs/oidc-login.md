@@ -6,7 +6,8 @@ O repositório confirmado para implementação é `adapter_EntraID`, embora a es
 use o nome `eclv-bff-login`. A estrutura existente foi preservada: Java 21, Spring Boot
 3.5.16, Maven, Spring MVC/Servlet e pacotes `identity.entraid`/`config`. Não há WebFlux,
 banco de dados ou outros serviços de autenticação. A configuração usa
-`application.properties` e variáveis de ambiente, sem profiles adicionais.
+`application.properties`, variáveis de ambiente e perfis `local`/`prod`.
+Consulte [configuração de produção](production.md).
 
 OAuth2 Client, Resource Server e Spring Security Test já estavam disponíveis no BOM
 existente. Nenhuma dependência foi adicionada nesta revisão.
@@ -103,6 +104,7 @@ cp .env.example .env
 # Edite .env localmente com os valores reais, sem versioná-los.
 set -a
 source .env
+export SPRING_PROFILES_ACTIVE=local
 set +a
 mvn verify
 mvn spring-boot:run
@@ -110,7 +112,7 @@ mvn spring-boot:run
 
 Spring não carrega `.env` automaticamente. O arquivo é ignorado pelo Git. Delimite
 corretamente valores especiais no arquivo shell, ou injete as variáveis pela IDE/secret
-manager. A alternativa empacotada é `java -jar target/adapter-entraid-0.0.1-SNAPSHOT.jar`.
+manager. A alternativa empacotada é `java -jar target/adapter-entraid-0.0.1-SNAPSHOT.jar --spring.profiles.active=local`.
 Não salve valores reais no `application.properties`, exemplos, histórico ou logs.
 
 ## Teste manual no tenant verdadeiro
