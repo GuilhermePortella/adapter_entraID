@@ -147,7 +147,8 @@ permissivo. A sessão troca de ID após login e o cookie usa HttpOnly, SameSite=
 Secure por padrão. Lax é compatível com o callback GET; não mudar para `form_post`
 sem reavaliar cookies/CSRF. O callback padrão é fixo, sem depender de Host enviado pelo cliente.
 
-A sessão expira após 20 minutos de inatividade. O filtro de expiração já existente foi
+A sessão expira no máximo 40 minutos após o login, mesmo com atividade, ou antes
+se o ID Token expirar. O timeout de inatividade também é 40 minutos. O filtro de expiração já existente foi
 mantido: também invalida a sessão no próximo acesso se o ID Token expirar. Não há refresh
 manual nem `offline_access`. O Access Token não é usado para chamadas externas; sua
 expiração isolada não encerra a sessão. Tokens ficam somente na sessão do servidor.
@@ -160,8 +161,7 @@ await fetch('/logout', { method: 'POST', headers: { [csrf.headerName]: csrf.toke
 ```
 
 O token acima é anti-CSRF, não um token de identidade. Logout retorna 204 e invalida
-a sessão; sem CSRF, retorna 403. A sessão SSO Microsoft não é encerrada, então um novo
-login pode ocorrer sem solicitar senha. Não há armazenamento de sessões em banco/Redis.
+a sessão; sem CSRF, retorna 403. A sessão SSO Microsoft não é encerrada, mas cada novo fluxo envia `prompt=login` para solicitar reautenticação. Não há armazenamento de sessões em banco/Redis.
 Reiniciar a aplicação exige novo login. HTTPS e estratégia de sessão para múltiplas
 réplicas precisam de definição corporativa fora desta PoC local.
 
@@ -243,3 +243,12 @@ Referência: https://learn.microsoft.com/en-us/security/zero-trust/develop/confi
 A página 403 fica em `src/main/resources/pages/403.html`, com CSS e JavaScript
 embutidos no JAR. O backend bloqueia o HTML de identidade antes de servi-lo; os
 easter eggs não alteram autenticação. Uma sessão expirada também recebe 403 nessa rota.
+
+O deadline absoluto fica apenas na sessão do servidor e é validado em cada requisição
+OIDC protegida. Sessões sem deadline são invalidadas. `/auth/me` inclui
+`session.expiresAt` e `session.serverTime` para a página limpar os dados e voltar a
+`/login` ao vencer o prazo. A verificação no Java independe do JavaScript e do relógio
+do navegador. Abas suspensas são revalidadas ao voltar ao primeiro plano.
+O prazo não estende a validade de um ID Token que expire antes de 40 minutos.
+
+Referência para reautenticação: https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc
