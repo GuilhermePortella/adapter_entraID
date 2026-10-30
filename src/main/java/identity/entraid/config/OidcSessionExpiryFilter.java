@@ -14,7 +14,7 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Bounds the authenticated session to the ID token lifetime; no silent refresh. */
+/** Enforces an absolute deadline independently of user activity and browser timers. */
 final class OidcSessionExpiryFilter extends OncePerRequestFilter {
     private static final Logger LOG = LoggerFactory.getLogger(OidcSessionExpiryFilter.class);
 
@@ -24,7 +24,9 @@ final class OidcSessionExpiryFilter extends OncePerRequestFilter {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof OidcUser user) {
             Instant expiry = user.getIdToken().getExpiresAt();
-            if (expiry == null || !Instant.now().isBefore(expiry)) {
+            Instant deadline = SessionLifetime.expiresAt(request.getSession(false));
+            Instant now = Instant.now();
+            if (expiry == null || deadline == null || !now.isBefore(expiry) || !now.isBefore(deadline)) {
                 new SecurityContextLogoutHandler().logout(request, response, authentication);
                 LOG.info("security_event=oidc_session_expired");
                 if (PageAccessDenied.isProtectedPage(request)) {

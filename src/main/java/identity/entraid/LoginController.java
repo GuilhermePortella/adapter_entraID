@@ -1,6 +1,9 @@
 package identity.entraid;
 
 import java.util.Map;
+import jakarta.servlet.http.HttpSession;
+import java.time.Instant;
+import identity.entraid.config.SessionLifetime;
 import java.util.List;
 import java.net.URI;
 import org.springframework.core.io.ClassPathResource;
@@ -31,7 +34,7 @@ public class LoginController {
     }
 
     @GetMapping("/auth/me")
-    public IdentityResponse me(@AuthenticationPrincipal OidcUser principal) {
+    public IdentityResponse me(@AuthenticationPrincipal OidcUser principal, HttpSession session) {
         var token = principal.getIdToken();
         var claims = token.getClaims();
         boolean groupOverage = Boolean.TRUE.equals(claims.get("hasgroups"))
@@ -42,7 +45,8 @@ public class LoginController {
         return new IdentityResponse(true, "Microsoft Entra ID", new UserIdentity(
                 token.getFullName(), token.getEmail(), token.getSubject(), token.getClaimAsString("tid")),
                 claims, new AccessDetails(strings(claims.get("groups")), strings(claims.get("roles")),
-                        strings(claims.get("wids")), groupStatus));
+                        strings(claims.get("wids")), groupStatus),
+                new SessionDetails(SessionLifetime.expiresAt(session), Instant.now()));
     }
 
     private static List<String> strings(Object value) {
@@ -51,7 +55,8 @@ public class LoginController {
     }
 
     public record IdentityResponse(boolean authenticated, String provider, UserIdentity user,
-                                   Map<String, Object> claims, AccessDetails access) { }
+                                   Map<String, Object> claims, AccessDetails access, SessionDetails session) { }
+    public record SessionDetails(Instant expiresAt, Instant serverTime) { }
     public record AccessDetails(List<String> groups, List<String> roles,
                                 List<String> directoryRoles, String groupsStatus) { }
     public record UserIdentity(String name, String email, String subject, String tenantId) { }
