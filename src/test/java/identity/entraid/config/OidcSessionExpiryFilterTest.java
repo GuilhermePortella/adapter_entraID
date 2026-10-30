@@ -53,6 +53,7 @@ class OidcSessionExpiryFilterTest {
         var authentication = authenticate(Instant.now().plusSeconds(3600));
         var session = new MockHttpSession();
         request.setSession(session);
+        session.setAttribute(SessionLifetime.EXPIRES_AT, Instant.now().plusSeconds(2400));
 
         filter.doFilter(request, response, chain);
 
@@ -67,6 +68,7 @@ class OidcSessionExpiryFilterTest {
         authenticate(Instant.now().minusSeconds(60));
         var session = new MockHttpSession();
         request.setSession(session);
+        session.setAttribute(SessionLifetime.EXPIRES_AT, Instant.now().plusSeconds(2400));
 
         filter.doFilter(request, response, chain);
 
@@ -101,6 +103,43 @@ class OidcSessionExpiryFilterTest {
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getRedirectedUrl()).isNull();
         assertThat(response.getContentAsString()).contains("Acesso restrito").doesNotContain("Ver resposta JSON");
+    }
+
+    @Test
+    void absoluteDeadlineBlocksEvenWithValidTokenAndRecentActivity() throws Exception {
+        authenticate(Instant.now().plusSeconds(7200));
+        request.setRequestURI("/demo/index.html");
+        var session = new MockHttpSession();
+        session.setAttribute(SessionLifetime.EXPIRES_AT, Instant.now().minusSeconds(1));
+        session.access();
+        request.setSession(session);
+        filter.doFilter(request, response, chain);
+        assertThat(session.isInvalid()).isTrue();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void missingDeadlineFailsClosed() throws Exception {
+        authenticate(Instant.now().plusSeconds(7200));
+        request.setRequestURI("/demo/index.html");
+        request.setSession(new MockHttpSession());
+        filter.doFilter(request, response, chain);
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void successfulLoginSetsFortyMinuteCapAndHonorsEarlierTokenExpiry() {
+        var session = new MockHttpSession();
+        Instant before = Instant.now();
+        SessionLifetime.start(session, before.plusSeconds(7200));
+        assertThat(SessionLifetime.expiresAt(session))
+                .isBetween(before.plusSeconds(2400), Instant.now().plusSeconds(2400));
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(2400);
+        Instant earlier = before.plusSeconds(600);
+        SessionLifetime.start(session, earlier);
+        assertThat(SessionLifetime.expiresAt(session)).isEqualTo(earlier);
     }
 
     private OAuth2AuthenticationToken authenticate(Instant expiresAt) {

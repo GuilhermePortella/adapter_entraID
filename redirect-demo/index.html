@@ -54,6 +54,17 @@
   const identity = document.getElementById('identity');
   const reload = document.getElementById('reload');
   const logout = document.getElementById('logout');
+  let expiryTimer;
+  function requireLogin() {
+    clearTimeout(expiryTimer);
+    identity.hidden = true;
+    document.getElementById('json').textContent = '';
+    for (const field of ['name', 'email', 'subject', 'tenantId']) {
+      document.getElementById(field).textContent = '';
+    }
+    window.location.replace('/login');
+  }
+
 
   async function loadIdentity() {
     reload.disabled = true;
@@ -71,12 +82,19 @@
         headers: { Accept: 'application/json' }
       });
       if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 302) {
-        status.textContent = 'Você ainda não está autenticado ou sua sessão expirou. Clique em Entrar com Microsoft.';
+        requireLogin();
         return;
       }
       if (!response.ok) throw new Error('request_failed');
       const data = await response.json();
       if (data.authenticated !== true || !data.user) throw new Error('invalid_response');
+      const remaining = Date.parse(data.session?.expiresAt) - Date.parse(data.session?.serverTime);
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        requireLogin();
+        return;
+      }
+      clearTimeout(expiryTimer);
+      expiryTimer = setTimeout(requireLogin, remaining);
       for (const field of ['name', 'email', 'subject', 'tenantId']) {
         document.getElementById(field).textContent = data.user[field] ?? 'Não informado';
       }
@@ -112,7 +130,12 @@
     }
   });
   reload.addEventListener('click', loadIdentity);
-  loadIdentity();
+  // Revalidate when returning to a tab or restoring browser history.
+  window.addEventListener('pagehide', () => { identity.hidden = true; });
+  window.addEventListener('pageshow', loadIdentity);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadIdentity();
+  });
 </script>
 </body>
 </html>

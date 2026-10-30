@@ -178,6 +178,7 @@ class OidcLoginTest {
         URI redirect = URI.create(result.getResponse().getRedirectedUrl());
         assertThat(redirect.getHost()).isEqualTo("login.microsoftonline.com");
         var query = parseForm(redirect.getRawQuery());
+        assertThat(query.get("prompt")).isEqualTo("login");
         nonce = query.get("nonce");
         assertThat(nonce).isNotBlank();
         assertThat(query.get("state")).isNotBlank();
@@ -282,6 +283,16 @@ class OidcLoginTest {
         mvc.perform(get("/auth/me").session(login())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.access.groups").isEmpty())
                 .andExpect(jsonPath("$.access.groupsStatus").value("requires_graph"));
+    }
+
+    @Test
+    void absoluteSessionDeadlineBlocksProtectedHtmlWithStillValidToken() throws Exception {
+        var session = login();
+        session.setAttribute(identity.entraid.config.SessionLifetime.EXPIRES_AT, Instant.now().minusSeconds(1));
+        mvc.perform(get("/demo/index.html").session(session))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Ver resposta JSON"))));
+        assertThat(session.isInvalid()).isTrue();
     }
 
     @Test

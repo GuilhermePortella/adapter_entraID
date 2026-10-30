@@ -81,6 +81,7 @@ public class OidcLoginConfig {
         var resolver = new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization");
         resolver.setAuthorizationRequestCustomizer(builder -> {
             OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
+            builder.additionalParameters(parameters -> parameters.put("prompt", "login"));
             LOG.info("security_event=oidc_login_started");
         });
         return http
@@ -118,6 +119,8 @@ public class OidcLoginConfig {
                         .authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(resolver))
                         .tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(tokenClient))
                         .successHandler((request, response, authentication) -> {
+                            var user = (org.springframework.security.oauth2.core.oidc.user.OidcUser) authentication.getPrincipal();
+                            SessionLifetime.start(request.getSession(), user.getIdToken().getExpiresAt());
                             LOG.info("security_event=oidc_login_succeeded");
                             response.sendRedirect(request.getContextPath() + "/demo/index.html");
                         })
